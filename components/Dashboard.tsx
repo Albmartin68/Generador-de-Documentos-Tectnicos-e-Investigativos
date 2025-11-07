@@ -1,9 +1,11 @@
 import React from 'react';
 import Card from './Card';
 import { TEMPLATES } from '../constants';
+import { useDocument } from '../contexts/DocumentContext';
 
 const Dashboard: React.FC<{ setView: (view: 'generator') => void }> = ({ setView }) => {
     
+    const { documents } = useDocument();
     const totalTemplates = Object.values(TEMPLATES).flat().length;
 
     return (
@@ -11,32 +13,35 @@ const Dashboard: React.FC<{ setView: (view: 'generator') => void }> = ({ setView
             <h1 className="text-3xl font-bold mb-6">Panel de Control</h1>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <Card title="Documentos Generados" value="12" />
+                <Card title="Documentos Generados" value={documents.length.toString()} />
                 <Card title="Plantillas Disponibles" value={totalTemplates.toString()} />
                 <Card title="Días Restantes en Prueba" value="21" />
             </div>
 
-            <div className="bg-gray-900 p-6 rounded-lg">
+            <div className="bg-gray-800 p-6 rounded-lg">
                 <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-bold">Documentos Recientes</h2>
-                    <button className="text-blue-500 hover:underline">Ver Todos</button>
+                    <h2 className="text-xl font-bold">Actividad Reciente</h2>
+                    <button className="text-blue-500 hover:underline">Ver Todo</button>
                 </div>
                 <div className="space-y-4">
-                    {/* Placeholder for recent documents */}
-                    <div className="flex justify-between items-center p-4 bg-gray-800 rounded-lg">
-                        <div>
-                            <p className="font-semibold">Documentación de API - Proyecto X</p>
-                            <p className="text-sm text-gray-400">Generado el 24 de Julio, 2024 - PDF/A</p>
+                    {documents.length > 0 ? (
+                        documents.slice(0, 3).map(doc => (
+                            <div key={doc.id} className="flex justify-between items-center p-4 bg-gray-900 rounded-lg animate-fade-in">
+                                <div>
+                                    <p className="font-semibold">{doc.title}</p>
+                                    <p className="text-sm text-gray-400">
+                                        {doc.templateName} - Generado el {doc.creationDate.toLocaleDateString('es-ES')} - {doc.outputFormat}
+                                    </p>
+                                </div>
+                                <button className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600">Ver</button>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="text-center py-8 text-gray-500">
+                            <p>No se han generado documentos todavía.</p>
+                            <p>¡Crea tu primer documento para ver la actividad aquí!</p>
                         </div>
-                        <button className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600">Ver</button>
-                    </div>
-                    <div className="flex justify-between items-center p-4 bg-gray-800 rounded-lg">
-                        <div>
-                            <p className="font-semibold">README - Biblioteca de UI</p>
-                            <p className="text-sm text-gray-400">Generado el 22 de Julio, 2024 - Markdown</p>
-                        </div>
-                        <button className="px-4 py-2 bg-gray-700 rounded-lg hover:bg-gray-600">Ver</button>
-                    </div>
+                    )}
                 </div>
             </div>
 

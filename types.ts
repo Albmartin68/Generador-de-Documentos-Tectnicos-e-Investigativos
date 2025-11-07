@@ -1,18 +1,23 @@
-export enum SubcoreType {
-    SOFTWARE = 'SOFTWARE',
-    ENGINEERING = 'ENGINEERING',
-    MEDICAL = 'MEDICAL',
-    EDUCATION = 'EDUCATION',
-}
+import React from 'react';
+
+export type SubcoreType = 'Software' | 'Engineering' | 'Medical' | 'Education';
 
 export interface Template {
-    id: string;
     name: string;
     description: string;
     supportedFormats: string[];
 }
 
-export interface DocumentState {
+export interface Document {
+    id: string;
+    title: string;
+    subcore: SubcoreType;
+    templateName: string;
+    outputFormat: string;
+    creationDate: Date;
+}
+
+export interface GeneratorState {
     subcore: SubcoreType | null;
     template: Template | null;
     sourceContent: string;
@@ -22,11 +27,13 @@ export interface DocumentState {
     error: string | null;
 }
 
-export interface DocumentContextType extends DocumentState {
+export interface DocumentContextType {
+    documents: Document[];
+    generatorState: GeneratorState;
     setSubcore: (subcore: SubcoreType | null) => void;
     setTemplate: (template: Template | null) => void;
     setSourceContent: (content: string) => void;
     setOutputFormat: (format: string) => void;
-    generateDocument: () => Promise<void>;
-    reset: () => void;
+    generateDocument: (title: string) => Promise<boolean>;
+    resetGenerator: () => void;
 }

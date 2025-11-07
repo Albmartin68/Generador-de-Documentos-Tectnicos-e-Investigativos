@@ -1,22 +1,50 @@
+import React from 'react';
+import { Template, SubcoreType } from './types';
+import { SoftwareIcon, EngineeringIcon, MedicalIcon, EducationIcon } from './components/icons/SpecialtyIcons';
 
-import { SubcoreType, Template } from './types';
+// FIX: Added React import to resolve React types like React.FC.
+export const SUBCORE_CATEGORIES: Record<SubcoreType, { name: string; icon: React.FC<React.SVGProps<SVGSVGElement>>; description: string; }> = {
+    Software: {
+        name: 'Software',
+        icon: SoftwareIcon,
+        description: 'Documentos para desarrollo de software y TI.'
+    },
+    Engineering: {
+        name: 'Ingeniería',
+        icon: EngineeringIcon,
+        description: 'Reportes y especificaciones técnicas de ingeniería.'
+    },
+    Medical: {
+        name: 'Medicina',
+        icon: MedicalIcon,
+        description: 'Informes y documentación para el área de la salud.'
+    },
+    Education: {
+        name: 'Educación',
+        icon: EducationIcon,
+        description: 'Materiales y planes de estudio educativos.'
+    },
+};
 
-export const TEMPLATES: Record<SubcoreType, Template[]> = {
-  [SubcoreType.SOFTWARE]: [
-    { id: 'sw-api', name: 'Documentación de API', description: 'Genera documentación para APIs REST desde especificaciones OpenAPI.', supportedFormats: ['PDF/A', 'HTML', 'EPUB'] },
-    { id: 'sw-sdd', name: 'Documento de Diseño de Software', description: 'Describe la arquitectura del sistema y los patrones de diseño.', supportedFormats: ['PDF/A', 'LaTeX'] },
-    { id: 'sw-readme', name: 'README de Proyecto', description: 'Crea un README completo para GitHub/GitLab.', supportedFormats: ['Markdown'] },
-  ],
-  [SubcoreType.ENGINEERING]: [
-    { id: 'eng-spec', name: 'Especificación Técnica', description: 'Detalla los requisitos y especificaciones del producto.', supportedFormats: ['PDF/A', 'DOCX'] },
-    { id: 'eng-iso', name: 'Informe de Cumplimiento ISO 9001', description: 'Valida y genera informes según las normas ISO 9001.', supportedFormats: ['PDF/A'] },
-  ],
-  [SubcoreType.MEDICAL]: [
-    { id: 'med-report', name: 'Informe de Estudio Clínico', description: 'Generación de informes compatibles con HIPAA.', supportedFormats: ['PDF/A', 'JATS'] },
-    { id: 'med-sop', name: 'Procedimiento Operativo Estándar', description: 'Documento para procedimientos médicos.', supportedFormats: ['PDF/A'] },
-  ],
-  [SubcoreType.EDUCATION]: [
-    { id: 'edu-scorm', name: 'Paquete SCORM', description: 'Exporta materiales como un paquete compatible con SCORM.', supportedFormats: ['SCORM 1.2', 'xAPI'] },
-    { id: 'edu-guide', name: 'Guía de Estudio Interactiva', description: 'Crea contenido de aprendizaje atractivo e interactivo.', supportedFormats: ['EPUB', 'HTML'] },
-  ],
+export const TEMPLATES: Record<string, Template[]> = {
+    Software: [
+        { name: 'Requerimientos de Software (SRS)', description: 'Define los requerimientos funcionales y no funcionales de un sistema.', supportedFormats: ['Markdown', 'PDF', 'LaTeX'] },
+        { name: 'Documento de Diseño Técnico (TDD)', description: 'Describe la arquitectura y el diseño técnico de alto nivel.', supportedFormats: ['Markdown', 'PDF'] },
+        { name: 'Plan de Pruebas', description: 'Esquema de las estrategias y casos de prueba para el software.', supportedFormats: ['Markdown', 'Word'] },
+    ],
+    Engineering: [
+        { name: 'Informe de Laboratorio', description: 'Documenta los procedimientos y resultados de un experimento.', supportedFormats: ['PDF', 'LaTeX', 'Word'] },
+        { name: 'Especificación de Diseño de Producto', description: 'Detalla los requisitos técnicos para un nuevo producto.', supportedFormats: ['PDF', 'Word'] },
+    ],
+    Medical: [
+        { name: 'Historial Clínico Anónimo', description: 'Resume el caso de un paciente de forma anónima para estudio.', supportedFormats: ['PDF', 'Word'] },
+        { name: 'Informe de Investigación Médica', description: 'Presenta los hallazgos de un estudio o investigación.', supportedFormats: ['PDF', 'LaTeX'] },
+        { name: 'Informe de Progreso Médico', description: 'Documenta el progreso médico de los pacientes para un seguimiento claro del tratamiento.', supportedFormats: ['Word', 'PDF'] },
+        { name: 'Historial Médico Completo', description: 'Registra de manera integral el historial médico del paciente para diagnósticos precisos.', supportedFormats: ['Word', 'PDF'] },
+        { name: 'Registro de Administración de Medicamentos', description: 'Garantiza la precisión y seguridad en la administración de medicamentos.', supportedFormats: ['Word', 'PDF'] },
+    ],
+    Education: [
+        { name: 'Plan de Lección', description: 'Estructura detallada para una clase o sesión de enseñanza.', supportedFormats: ['Markdown', 'Word', 'PDF'] },
+        { name: 'Propuesta de Curso', description: 'Describe un nuevo curso, sus objetivos y su contenido.', supportedFormats: ['Word', 'PDF'] },
+    ],
 };

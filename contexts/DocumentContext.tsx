@@ -1,8 +1,8 @@
 import React, { createContext, useState, useContext, ReactNode } from 'react';
-import { SubcoreType, Template, DocumentContextType, DocumentState } from '../types';
+import { SubcoreType, Template, DocumentContextType, GeneratorState, Document } from '../types';
 import { generateDocumentContent } from '../services/geminiService';
 
-const initialState: DocumentState = {
+const initialGeneratorState: GeneratorState = {
     subcore: null,
     template: null,
     sourceContent: '',
@@ -15,48 +15,63 @@ const initialState: DocumentState = {
 const DocumentContext = createContext<DocumentContextType | undefined>(undefined);
 
 export const DocumentProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [state, setState] = useState<DocumentState>(initialState);
+    const [generatorState, setGeneratorState] = useState<GeneratorState>(initialGeneratorState);
+    const [documents, setDocuments] = useState<Document[]>([]);
 
-    const setSubcore = (subcore: SubcoreType | null) => setState(prev => ({ ...prev, subcore, template: null, outputFormat: '' }));
+    const setSubcore = (subcore: SubcoreType | null) => setGeneratorState(prev => ({ ...initialGeneratorState, subcore }));
     
     const setTemplate = (template: Template | null) => {
-        setState(prev => ({
+        setGeneratorState(prev => ({
             ...prev,
             template,
             outputFormat: template ? template.supportedFormats[0] : '',
         }));
     };
     
-    const setSourceContent = (content: string) => setState(prev => ({ ...prev, sourceContent: content }));
+    const setSourceContent = (content: string) => setGeneratorState(prev => ({ ...prev, sourceContent: content }));
     
-    const setOutputFormat = (format: string) => setState(prev => ({ ...prev, outputFormat: format }));
+    const setOutputFormat = (format: string) => setGeneratorState(prev => ({ ...prev, outputFormat: format }));
 
-    const generateDocument = async () => {
-        if (!state.template || !state.sourceContent || !state.outputFormat) {
-            setState(prev => ({ ...prev, error: 'Por favor, completa todos los campos requeridos.' }));
-            return;
+    const generateDocument = async (title: string): Promise<boolean> => {
+        if (!generatorState.template || !generatorState.sourceContent || !generatorState.outputFormat || !title) {
+            setGeneratorState(prev => ({ ...prev, error: 'Por favor, completa todos los campos, incluido el título.' }));
+            return false;
         }
 
-        setState(prev => ({ ...prev, isLoading: true, error: null, generatedContent: '' }));
+        setGeneratorState(prev => ({ ...prev, isLoading: true, error: null, generatedContent: '' }));
         try {
-            const content = await generateDocumentContent(state.template, state.sourceContent, state.outputFormat);
-            setState(prev => ({ ...prev, generatedContent: content, isLoading: false }));
+            const content = await generateDocumentContent(generatorState.template, generatorState.sourceContent, generatorState.outputFormat);
+            
+            const newDocument: Document = {
+                id: `doc_${Date.now()}`,
+                title,
+                subcore: generatorState.subcore!,
+                templateName: generatorState.template.name,
+                outputFormat: generatorState.outputFormat,
+                creationDate: new Date(),
+            };
+            
+            setDocuments(prevDocs => [newDocument, ...prevDocs]);
+            setGeneratorState(prev => ({ ...prev, generatedContent: content, isLoading: false }));
+            return true;
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Un error desconocido ocurrió.';
-            setState(prev => ({ ...prev, error: errorMessage, isLoading: false }));
+            setGeneratorState(prev => ({ ...prev, error: errorMessage, isLoading: false }));
+            return false;
         }
     };
     
-    const reset = () => setState(initialState);
+    const resetGenerator = () => setGeneratorState(initialGeneratorState);
 
     const value: DocumentContextType = {
-        ...state,
+        documents,
+        generatorState,
         setSubcore,
         setTemplate,
         setSourceContent,
         setOutputFormat,
         generateDocument,
-        reset,
+        resetGenerator: resetGenerator,
     };
 
     return (

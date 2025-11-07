@@ -3,7 +3,6 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import DocumentGenerator from './components/DocumentGenerator';
 import { DocumentProvider } from './contexts/DocumentContext';
-import './index.css';
 
 
 function App() {

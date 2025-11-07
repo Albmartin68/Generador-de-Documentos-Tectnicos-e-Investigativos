@@ -1,154 +1,167 @@
 import React, { useState } from 'react';
 import { useDocument } from '../contexts/DocumentContext';
-import { SubcoreType, Template } from '../types';
-import { TEMPLATES } from '../constants';
-import { SoftwareIcon, EngineeringIcon, MedicalIcon, EducationIcon } from './icons/SpecialtyIcons';
-import { SparklesIcon, ArrowLeftIcon } from './icons/HeroIcons';
-
-
-const subcoreOptions = [
-    { id: SubcoreType.SOFTWARE, name: 'Software', icon: SoftwareIcon },
-    { id: SubcoreType.ENGINEERING, name: 'Ingeniería', icon: EngineeringIcon },
-    { id: SubcoreType.MEDICAL, name: 'Médico', icon: MedicalIcon },
-    { id: SubcoreType.EDUCATION, name: 'Educación', icon: EducationIcon },
-];
+import { SUBCORE_CATEGORIES, TEMPLATES } from '../constants';
+import { Template } from '../types';
 
 const DocumentGenerator: React.FC = () => {
     const {
-        subcore, setSubcore,
-        template, setTemplate,
-        sourceContent, setSourceContent,
-        outputFormat, setOutputFormat,
-        generatedContent,
-        isLoading,
-        error,
+        generatorState,
+        setSubcore,
+        setTemplate,
+        setSourceContent,
+        setOutputFormat,
         generateDocument,
-        reset,
+        resetGenerator,
     } = useDocument();
-
-    const [step, setStep] = useState(1);
-
-    const handleNext = () => setStep(s => s + 1);
-    const handleBack = () => setStep(s => s - 1);
-
-    const handleSubcoreSelect = (sc: SubcoreType) => {
-        setSubcore(sc);
-        handleNext();
-    };
-
-    const handleTemplateSelect = (t: Template) => {
-        setTemplate(t);
-        handleNext();
-    };
     
-    const startOver = () => {
-        reset();
-        setStep(1);
+    const [title, setTitle] = useState('');
+    const [docGenerated, setDocGenerated] = useState(false);
+
+    const { subcore, template, sourceContent, outputFormat, isLoading, error, generatedContent } = generatorState;
+
+    const handleGenerate = async () => {
+        const success = await generateDocument(title);
+        if (success) {
+            setDocGenerated(true);
+        }
     };
 
-    const renderStep = () => {
-        switch (step) {
-            case 1: // Select Subcore
-                return (
-                    <div>
-                        <h2 className="text-2xl font-bold mb-2">Selecciona tu Dominio</h2>
-                        <p className="text-gray-400 mb-6">Elige la categoría que mejor se adapte a tu documento.</p>
-                        <div className="grid grid-cols-2 gap-4">
-                            {subcoreOptions.map(option => (
-                                <button key={option.id} onClick={() => handleSubcoreSelect(option.id)} className="p-6 bg-gray-800 rounded-lg text-center hover:bg-gray-700 transition-colors">
-                                    <option.icon className="h-12 w-12 mx-auto mb-2 text-blue-500" />
-                                    <span className="font-semibold">{option.name}</span>
-                                </button>
-                            ))}
-                        </div>
+    const handleReset = () => {
+        resetGenerator();
+        setTitle('');
+        setDocGenerated(false);
+    };
+
+    if (isLoading) {
+        return (
+            <div className="flex flex-col items-center justify-center h-full">
+                <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                <p className="mt-4 text-lg">Generando tu documento... Esto puede tardar unos momentos.</p>
+            </div>
+        );
+    }
+    
+    if (docGenerated && generatedContent) {
+        return (
+            <div className="animate-fade-in">
+                <h1 className="text-3xl font-bold mb-4">{title}</h1>
+                <div className="bg-gray-800 p-6 rounded-lg mb-6 max-h-[60vh] overflow-y-auto">
+                    <pre className="whitespace-pre-wrap font-mono text-sm">{generatedContent}</pre>
+                </div>
+                 <button 
+                    onClick={handleReset}
+                    className="px-6 py-3 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+                >
+                    Crear Otro Documento
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="max-w-4xl mx-auto">
+            <h1 className="text-3xl font-bold mb-2">Generador de Documentos</h1>
+            <p className="text-gray-400 mb-8">Sigue los pasos para crear un nuevo documento técnico.</p>
+
+            {/* Step 1: Select Subcore */}
+            {!subcore && (
+                 <section className="animate-fade-in">
+                    <h2 className="text-xl font-semibold mb-4">1. Elige una especialidad</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {Object.entries(SUBCORE_CATEGORIES).map(([key, value]) => (
+                            <button key={key} onClick={() => setSubcore(key as any)} className="p-6 bg-gray-800 rounded-lg text-left hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <div className="flex items-center">
+                                    <value.icon className="w-8 h-8 mr-4 text-blue-400" />
+                                    <div>
+                                        <h3 className="font-bold text-lg">{value.name}</h3>
+                                        <p className="text-gray-400 text-sm">{value.description}</p>
+                                    </div>
+                                </div>
+                            </button>
+                        ))}
                     </div>
-                );
-            case 2: // Select Template
-                return (
-                    <div>
-                        <h2 className="text-2xl font-bold mb-2">Elige una Plantilla</h2>
-                        <p className="text-gray-400 mb-6">Las plantillas proporcionan una estructura predefinida para tu documento.</p>
-                        <div className="space-y-3">
-                            {subcore && TEMPLATES[subcore].map(t => (
-                                <button key={t.id} onClick={() => handleTemplateSelect(t)} className="w-full text-left p-4 bg-gray-800 rounded-lg hover:bg-gray-700 transition-colors">
-                                    <h3 className="font-bold">{t.name}</h3>
-                                    <p className="text-sm text-gray-400">{t.description}</p>
-                                </button>
-                            ))}
-                        </div>
-                        <button onClick={handleBack} className="mt-6 flex items-center text-blue-500 hover:underline">
-                            <ArrowLeftIcon className="h-4 w-4 mr-2" />
-                            Volver
-                        </button>
+                 </section>
+            )}
+
+            {/* Step 2: Select Template */}
+            {subcore && !template && (
+                 <section className="animate-fade-in">
+                    <button onClick={() => setSubcore(null)} className="flex items-center text-blue-400 hover:underline mb-4">
+                         Volver a especialidades
+                    </button>
+                    <h2 className="text-xl font-semibold mb-4">2. Selecciona una plantilla para <span className="text-blue-400">{SUBCORE_CATEGORIES[subcore as keyof typeof SUBCORE_CATEGORIES].name}</span></h2>
+                    <div className="space-y-3">
+                        {TEMPLATES[subcore].map((t: Template) => (
+                            <button key={t.name} onClick={() => setTemplate(t)} className="w-full p-4 bg-gray-800 rounded-lg text-left hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <h3 className="font-bold">{t.name}</h3>
+                                <p className="text-gray-400 text-sm">{t.description}</p>
+                            </button>
+                        ))}
                     </div>
-                );
-            case 3: // Input Content
-                return (
-                    <div>
-                        <h2 className="text-2xl font-bold mb-2">Proporciona el Contenido</h2>
-                        <p className="text-gray-400 mb-6">Pega tu contenido fuente (ej. especificación OpenAPI, notas, etc.).</p>
-                        <textarea
-                            className="w-full h-64 p-3 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                            placeholder="Pega tu contenido aquí..."
-                            value={sourceContent}
-                            onChange={(e) => setSourceContent(e.target.value)}
-                        />
-                        <div className="mt-4">
-                            <label className="block text-sm font-medium text-gray-400 mb-2">Formato de Salida</label>
+                </section>
+            )}
+
+            {/* Step 3: Input Content */}
+            {subcore && template && (
+                 <section className="animate-fade-in">
+                    <button onClick={() => setTemplate(null)} className="flex items-center text-blue-400 hover:underline mb-4">
+                        Volver a plantillas
+                    </button>
+                     <h2 className="text-xl font-semibold mb-4">3. Completa los detalles del documento</h2>
+
+                    <div className="bg-gray-800 p-6 rounded-lg space-y-6">
+                        <div>
+                            <label htmlFor="doc-title" className="block text-sm font-medium text-gray-300 mb-2">Título del Documento</label>
+                            <input
+                                type="text"
+                                id="doc-title"
+                                value={title}
+                                onChange={(e) => setTitle(e.target.value)}
+                                placeholder="Ej: Reporte de Pruebas Q3"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label htmlFor="source-content" className="block text-sm font-medium text-gray-300 mb-2">Contenido Fuente</label>
+                            <textarea
+                                id="source-content"
+                                rows={10}
+                                value={sourceContent}
+                                onChange={(e) => setSourceContent(e.target.value)}
+                                placeholder="Pega aquí el contenido base, notas, datos brutos, o un borrador..."
+                                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                        </div>
+
+                        <div>
+                            <label htmlFor="output-format" className="block text-sm font-medium text-gray-300 mb-2">Formato de Salida</label>
                             <select
+                                id="output-format"
                                 value={outputFormat}
                                 onChange={(e) => setOutputFormat(e.target.value)}
-                                className="w-full p-3 bg-gray-950 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                             >
-                                {template?.supportedFormats.map(format => (
+                                {template.supportedFormats.map(format => (
                                     <option key={format} value={format}>{format}</option>
                                 ))}
                             </select>
                         </div>
-                        <div className="flex justify-between mt-6">
-                            <button onClick={handleBack} className="flex items-center text-blue-500 hover:underline">
-                                <ArrowLeftIcon className="h-4 w-4 mr-2" />
-                                Volver
-                            </button>
-                            <button
-                                onClick={generateDocument}
-                                disabled={isLoading || !sourceContent}
-                                className="px-6 py-3 bg-blue-600 rounded-lg font-semibold flex items-center hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                            >
-                                {isLoading ? 'Generando...' : 'Generar Documento'}
-                                <SparklesIcon className="h-5 w-5 ml-2" />
-                            </button>
-                        </div>
-                         {error && <p className="text-red-500 mt-4 text-center">{error}</p>}
                     </div>
-                );
-            default:
-                return null;
-        }
-    };
-    
-    if (generatedContent) {
-        return (
-             <div>
-                <h2 className="text-2xl font-bold mb-4">Documento Generado</h2>
-                <pre className="w-full h-[60vh] p-4 bg-gray-950 border border-gray-700 rounded-lg overflow-auto whitespace-pre-wrap">
-                    <code>{generatedContent}</code>
-                </pre>
-                <div className="mt-6 flex justify-between">
-                    <button onClick={startOver} className="px-6 py-3 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition-colors">
-                        Crear Otro Documento
-                    </button>
-                    <button className="px-6 py-3 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
-                        Descargar {outputFormat}
-                    </button>
-                </div>
-            </div>
-        )
-    }
 
-    return (
-        <div className="max-w-4xl mx-auto p-8 bg-gray-900 rounded-lg shadow-2xl">
-            {renderStep()}
+                    {error && <p className="text-red-500 mt-4">{error}</p>}
+                    
+                    <div className="mt-8 flex justify-end">
+                         <button 
+                            onClick={handleGenerate}
+                            disabled={!title || !sourceContent || !outputFormat}
+                            className="px-8 py-3 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
+                        >
+                            Generar Documento
+                        </button>
+                    </div>
+                </section>
+            )}
         </div>
     );
 };

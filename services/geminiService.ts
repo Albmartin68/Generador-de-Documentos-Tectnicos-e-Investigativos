@@ -2,13 +2,12 @@ import { GoogleGenAI } from "@google/genai";
 import { Template } from '../types';
 
 // The API key must be obtained exclusively from the environment variable `process.env.API_KEY`.
-const apiKey = process.env.API_KEY;
-if (!apiKey) {
+if (!process.env.API_KEY) {
     throw new Error("API_KEY environment variable is not set");
 }
 
 // Always use `new GoogleGenAI({apiKey: process.env.API_KEY});`.
-const ai = new GoogleGenAI({ apiKey });
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateDocumentContent = async (
     template: Template,
