@@ -1,39 +1,44 @@
-import React from 'react';
-
 export type SubcoreType = 'Software' | 'Engineering' | 'Medical' | 'Education';
 
+export type SupportedFormat = 'Markdown' | 'PDF' | 'LaTeX' | 'Word';
+
 export interface Template {
-    name: string;
-    description: string;
-    supportedFormats: string[];
+  name: string;
+  description: string;
+  supportedFormats: SupportedFormat[];
 }
 
 export interface Document {
-    id: string;
-    title: string;
-    subcore: SubcoreType;
-    templateName: string;
-    outputFormat: string;
-    creationDate: Date;
+  id: string;
+  title: string;
+  content: string;
+  templateName: string;
+  subcore: SubcoreType;
+  outputFormat: SupportedFormat;
+  creationDate: Date;
 }
 
-export interface GeneratorState {
-    subcore: SubcoreType | null;
-    template: Template | null;
-    sourceContent: string;
-    generatedContent: string;
-    outputFormat: string;
-    isLoading: boolean;
-    error: string | null;
+export interface GenerationParams {
+    template: Template;
+    subcore: SubcoreType;
+    title: string;
+    language: string;
+    keyPoints: string;
+    outputFormat: SupportedFormat;
+}
+
+export type FlashcardType = 'error' | 'suggestion' | 'keyInfo';
+
+export interface Flashcard {
+  type: FlashcardType;
+  content: string;
 }
 
 export interface DocumentContextType {
-    documents: Document[];
-    generatorState: GeneratorState;
-    setSubcore: (subcore: SubcoreType | null) => void;
-    setTemplate: (template: Template | null) => void;
-    setSourceContent: (content: string) => void;
-    setOutputFormat: (format: string) => void;
-    generateDocument: (title: string) => Promise<boolean>;
-    resetGenerator: () => void;
+  documents: Document[];
+  addDocument: (document: Document) => void;
+  flashcards: Flashcard[];
+  isFlashcardLoading: boolean;
+  generateFlashcards: (content: string) => Promise<void>;
+  clearFlashcards: () => void;
 }

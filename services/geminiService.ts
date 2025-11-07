@@ -1,57 +1,101 @@
-import { GoogleGenAI } from "@google/genai";
-import { Template } from '../types';
+import { GoogleGenAI, Type } from "@google/genai";
+import { GenerationParams, Flashcard } from "../types";
 
-// The API key must be obtained exclusively from the environment variable `process.env.API_KEY`.
-if (!process.env.API_KEY) {
-    throw new Error("API_KEY environment variable is not set");
-}
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY! });
 
-// Always use `new GoogleGenAI({apiKey: process.env.API_KEY});`.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export async function generateDocumentContent(params: GenerationParams): Promise<string> {
+    const { template, subcore, title, language, keyPoints, outputFormat } = params;
 
-export const generateDocumentContent = async (
-    template: Template,
-    sourceContent: string,
-    outputFormat: string
-): Promise<string> => {
     const prompt = `
-        **Tarea:** Generar un documento técnico basado en una plantilla.
+        **Instrucción:** Genera el contenido para un documento técnico profesional.
+        
+        **Categoría:** ${subcore}
+        **Tipo de Plantilla:** ${template.name} (${template.description})
+        **Título del Documento:** ${title}
+        **Idioma:** ${language}
+        **Formato de Salida Deseado:** ${outputFormat}
+        **Puntos Clave a Incluir:**
+        ${keyPoints}
 
-        **Plantilla:** ${template.name} (${template.description})
-        **Formato de Salida Requerido:** ${outputFormat}
-        **Contenido Fuente:**
-        ---
-        ${sourceContent}
-        ---
-
-        **Instrucciones:**
-        1.  Analiza el contenido fuente proporcionado.
-        2.  Utilizando la plantilla "${template.name}", genera el contenido completo del documento.
-        3.  El documento debe ser profesional, bien estructurado y coherente.
-        4.  Asegúrate de que la salida esté formateada adecuadamente para el formato de salida "${outputFormat}". Si el formato es Markdown, usa la sintaxis de Markdown. Si es LaTeX, usa la sintaxis de LaTeX.
-        5.  No incluyas esta sección de instrucciones en la respuesta final. Solo genera el contenido del documento solicitado.
+        **Tarea:**
+        Basado en la información proporcionada, redacta el contenido completo del documento. 
+        Asegúrate de que el contenido sea coherente, bien estructurado y profesional.
+        Utiliza un formato adecuado para el tipo de documento solicitado.
+        Si el formato de salida es Markdown o LaTeX, usa la sintaxis apropiada.
+        La respuesta debe contener únicamente el cuerpo del documento generado, sin explicaciones adicionales, introducciones o texto que no sea parte del documento en sí.
     `;
 
     try {
-        // Use `ai.models.generateContent` to query GenAI.
         const response = await ai.models.generateContent({
-            // For complex text tasks like document generation, 'gemini-2.5-pro' is a good choice.
-            model: 'gemini-2.5-pro',
+            model: "gemini-2.5-flash",
             contents: prompt,
-            config: {
-                temperature: 0.5,
-                topP: 0.95,
-                topK: 64,
-            },
         });
         
-        // Access the generated text directly from the `.text` property.
-        return response.text;
-    } catch (error) {
-        console.error("Error generating document content:", error);
-        if (error instanceof Error) {
-            return `Error al generar el documento: ${error.message}`;
+        const text = response.text;
+        if (!text) {
+            throw new Error("La respuesta de la API no contiene texto.");
         }
-        return "Ocurrió un error desconocido al generar el documento.";
+
+        return text;
+
+    } catch (error) {
+        console.error("Error al generar el documento con Gemini:", error);
+        throw new Error("No se pudo generar el contenido del documento. Por favor, inténtelo de nuevo.");
     }
-};
+}
+
+
+export async function generateFlashcardsFromContent(content: string): Promise<Flashcard[]> {
+    const prompt = `
+        **Instrucción:** Analiza el siguiente documento técnico y extrae puntos clave en formato de "flashcards".
+        
+        **Documento a Analizar:**
+        ---
+        ${content}
+        ---
+
+        **Tarea:**
+        Identifica tres tipos de información en el texto:
+        1.  **Errores Potenciales (error):** Inconsistencias, datos que parecen incorrectos o frases mal formuladas.
+        2.  **Sugerencias de Mejora (suggestion):** Próximos pasos, áreas que podrían expandirse o mejoras en la redacción.
+        3.  **Información Clave (keyInfo):** Datos críticos, conclusiones importantes o las ideas más relevantes del texto.
+
+        Devuelve una lista de objetos JSON que sigan el esquema proporcionado. Cada objeto debe tener un tipo y el contenido textual de la flashcard. Sé conciso y directo.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            type: {
+                                type: Type.STRING,
+                                enum: ['error', 'suggestion', 'keyInfo'],
+                                description: "El tipo de flashcard."
+                            },
+                            content: {
+                                type: Type.STRING,
+                                description: "El contenido textual de la flashcard."
+                            }
+                        },
+                        required: ["type", "content"]
+                    }
+                }
+            }
+        });
+
+        const jsonText = response.text.trim();
+        const flashcards = JSON.parse(jsonText);
+        return flashcards as Flashcard[];
+
+    } catch (error) {
+        console.error("Error al generar las flashcards con Gemini:", error);
+        throw new Error("No se pudo analizar el documento. La respuesta de la IA no fue un JSON válido o hubo otro error.");
+    }
+}

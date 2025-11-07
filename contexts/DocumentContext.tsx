@@ -1,90 +1,48 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
-import { SubcoreType, Template, DocumentContextType, GeneratorState, Document } from '../types';
-import { generateDocumentContent } from '../services/geminiService';
-
-const initialGeneratorState: GeneratorState = {
-    subcore: null,
-    template: null,
-    sourceContent: '',
-    generatedContent: '',
-    outputFormat: '',
-    isLoading: false,
-    error: null,
-};
+import React, { createContext, useContext, useState, ReactNode } from 'react';
+import { Document, Flashcard } from '../types';
+import { generateFlashcardsFromContent } from '../services/geminiService';
+import { DocumentContextType } from '../types';
 
 const DocumentContext = createContext<DocumentContextType | undefined>(undefined);
 
 export const DocumentProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [generatorState, setGeneratorState] = useState<GeneratorState>(initialGeneratorState);
-    const [documents, setDocuments] = useState<Document[]>([]);
+  const [documents, setDocuments] = useState<Document[]>([]);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [isFlashcardLoading, setIsFlashcardLoading] = useState(false);
 
-    const setSubcore = (subcore: SubcoreType | null) => setGeneratorState(prev => ({ ...initialGeneratorState, subcore }));
-    
-    const setTemplate = (template: Template | null) => {
-        setGeneratorState(prev => ({
-            ...prev,
-            template,
-            outputFormat: template ? template.supportedFormats[0] : '',
-        }));
-    };
-    
-    const setSourceContent = (content: string) => setGeneratorState(prev => ({ ...prev, sourceContent: content }));
-    
-    const setOutputFormat = (format: string) => setGeneratorState(prev => ({ ...prev, outputFormat: format }));
+  const addDocument = (document: Document) => {
+    setDocuments(prevDocuments => [document, ...prevDocuments]);
+  };
 
-    const generateDocument = async (title: string): Promise<boolean> => {
-        if (!generatorState.template || !generatorState.sourceContent || !generatorState.outputFormat || !title) {
-            setGeneratorState(prev => ({ ...prev, error: 'Por favor, completa todos los campos, incluido el título.' }));
-            return false;
-        }
+  const clearFlashcards = () => {
+    setFlashcards([]);
+  }
 
-        setGeneratorState(prev => ({ ...prev, isLoading: true, error: null, generatedContent: '' }));
-        try {
-            const content = await generateDocumentContent(generatorState.template, generatorState.sourceContent, generatorState.outputFormat);
-            
-            const newDocument: Document = {
-                id: `doc_${Date.now()}`,
-                title,
-                subcore: generatorState.subcore!,
-                templateName: generatorState.template.name,
-                outputFormat: generatorState.outputFormat,
-                creationDate: new Date(),
-            };
-            
-            setDocuments(prevDocs => [newDocument, ...prevDocs]);
-            setGeneratorState(prev => ({ ...prev, generatedContent: content, isLoading: false }));
-            return true;
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Un error desconocido ocurrió.';
-            setGeneratorState(prev => ({ ...prev, error: errorMessage, isLoading: false }));
-            return false;
-        }
-    };
-    
-    const resetGenerator = () => setGeneratorState(initialGeneratorState);
+  const generateFlashcards = async (content: string) => {
+    setIsFlashcardLoading(true);
+    clearFlashcards();
+    try {
+        const generatedFlashcards = await generateFlashcardsFromContent(content);
+        setFlashcards(generatedFlashcards);
+    } catch (error) {
+        console.error("Failed to generate flashcards:", error);
+        // Optionally, set an error state to show in the UI
+    } finally {
+        setIsFlashcardLoading(false);
+    }
+  };
 
-    const value: DocumentContextType = {
-        documents,
-        generatorState,
-        setSubcore,
-        setTemplate,
-        setSourceContent,
-        setOutputFormat,
-        generateDocument,
-        resetGenerator: resetGenerator,
-    };
-
-    return (
-        <DocumentContext.Provider value={value}>
-            {children}
-        </DocumentContext.Provider>
-    );
+  return (
+    <DocumentContext.Provider value={{ documents, addDocument, flashcards, isFlashcardLoading, generateFlashcards, clearFlashcards }}>
+      {children}
+    </DocumentContext.Provider>
+  );
 };
 
 export const useDocument = (): DocumentContextType => {
-    const context = useContext(DocumentContext);
-    if (context === undefined) {
-        throw new Error('useDocument debe ser usado dentro de un DocumentProvider');
-    }
-    return context;
+  const context = useContext(DocumentContext);
+  if (!context) {
+    throw new Error('useDocument must be used within a DocumentProvider');
+  }
+  return context;
 };

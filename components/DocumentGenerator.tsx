@@ -1,167 +1,249 @@
 import React, { useState } from 'react';
-import { useDocument } from '../contexts/DocumentContext';
 import { SUBCORE_CATEGORIES, TEMPLATES } from '../constants';
-import { Template } from '../types';
+import { SubcoreType, Template, SupportedFormat, Flashcard, FlashcardType } from '../types';
+import { generateDocumentContent } from '../services/geminiService';
+import { useDocument } from '../contexts/DocumentContext';
+import { ArrowLeftIcon, SparklesIcon, DocumentArrowDownIcon, ExclamationTriangleIcon, LightBulbIcon } from './icons/HeroIcons';
+
+const FlashcardIcon: React.FC<{ type: FlashcardType }> = ({ type }) => {
+    switch (type) {
+        case 'error':
+            return <ExclamationTriangleIcon className="h-6 w-6 text-red-400" />;
+        case 'suggestion':
+            return <LightBulbIcon className="h-6 w-6 text-yellow-400" />;
+        case 'keyInfo':
+            return <SparklesIcon className="h-6 w-6 text-cyan-400" />;
+        default:
+            return null;
+    }
+};
 
 const DocumentGenerator: React.FC = () => {
-    const {
-        generatorState,
-        setSubcore,
-        setTemplate,
-        setSourceContent,
-        setOutputFormat,
-        generateDocument,
-        resetGenerator,
-    } = useDocument();
+    const [step, setStep] = useState(1);
+    const [selectedSubcore, setSelectedSubcore] = useState<SubcoreType | null>(null);
+    const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null);
+    const [documentTitle, setDocumentTitle] = useState('');
+    const [language, setLanguage] = useState('Español');
+    const [keyPoints, setKeyPoints] = useState('');
+    const [outputFormat, setOutputFormat] = useState<SupportedFormat>('Markdown');
+    const [generatedContent, setGeneratedContent] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     
-    const [title, setTitle] = useState('');
-    const [docGenerated, setDocGenerated] = useState(false);
+    const { addDocument, generateFlashcards, flashcards, isFlashcardLoading, clearFlashcards } = useDocument();
 
-    const { subcore, template, sourceContent, outputFormat, isLoading, error, generatedContent } = generatorState;
+    const handleSubcoreSelect = (subcore: SubcoreType) => {
+        setSelectedSubcore(subcore);
+        setStep(2);
+    };
+
+    const handleTemplateSelect = (template: Template) => {
+        setSelectedTemplate(template);
+        setOutputFormat(template.supportedFormats[0]); 
+        setStep(3);
+    };
 
     const handleGenerate = async () => {
-        const success = await generateDocument(title);
-        if (success) {
-            setDocGenerated(true);
+        if (!selectedTemplate || !selectedSubcore || !documentTitle || !keyPoints) {
+            setError('Por favor, completa todos los campos.');
+            return;
+        }
+        setError(null);
+        setIsLoading(true);
+        setGeneratedContent('');
+        clearFlashcards();
+
+        try {
+            const content = await generateDocumentContent({
+                template: selectedTemplate,
+                subcore: selectedSubcore,
+                title: documentTitle,
+                language,
+                keyPoints,
+                outputFormat,
+            });
+            setGeneratedContent(content);
+            addDocument({
+                id: new Date().toISOString(),
+                title: documentTitle,
+                content,
+                templateName: selectedTemplate.name,
+                subcore: selectedSubcore,
+                outputFormat,
+                creationDate: new Date(),
+            });
+            setStep(4);
+        } catch (err: any) {
+            setError(err.message || 'Ocurrió un error inesperado.');
+        } finally {
+            setIsLoading(false);
         }
     };
-
-    const handleReset = () => {
-        resetGenerator();
-        setTitle('');
-        setDocGenerated(false);
-    };
-
-    if (isLoading) {
-        return (
-            <div className="flex flex-col items-center justify-center h-full">
-                <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-4 text-lg">Generando tu documento... Esto puede tardar unos momentos.</p>
-            </div>
-        );
+    
+    const handleAnalyze = async () => {
+        if (!generatedContent) return;
+        await generateFlashcards(generatedContent);
     }
     
-    if (docGenerated && generatedContent) {
-        return (
-            <div className="animate-fade-in">
-                <h1 className="text-3xl font-bold mb-4">{title}</h1>
-                <div className="bg-gray-800 p-6 rounded-lg mb-6 max-h-[60vh] overflow-y-auto">
-                    <pre className="whitespace-pre-wrap font-mono text-sm">{generatedContent}</pre>
-                </div>
-                 <button 
-                    onClick={handleReset}
-                    className="px-6 py-3 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-                >
-                    Crear Otro Documento
-                </button>
-            </div>
-        );
+    const handleDownload = () => {
+        if (!generatedContent) return;
+        const blob = new Blob([generatedContent], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const extension = {
+            'Markdown': 'md',
+            'PDF': 'txt', // PDF generation is complex, download as txt
+            'LaTeX': 'tex',
+            'Word': 'txt' // Word generation is complex, download as txt
+        }[outputFormat];
+        a.download = `${documentTitle || 'documento'}.${extension}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const reset = () => {
+        setStep(1);
+        setSelectedSubcore(null);
+        setSelectedTemplate(null);
+        setDocumentTitle('');
+        setLanguage('Español');
+        setKeyPoints('');
+        setOutputFormat('Markdown');
+        setGeneratedContent('');
+        setError(null);
+        clearFlashcards();
     }
-
-    return (
-        <div className="max-w-4xl mx-auto">
-            <h1 className="text-3xl font-bold mb-2">Generador de Documentos</h1>
-            <p className="text-gray-400 mb-8">Sigue los pasos para crear un nuevo documento técnico.</p>
-
-            {/* Step 1: Select Subcore */}
-            {!subcore && (
-                 <section className="animate-fade-in">
-                    <h2 className="text-xl font-semibold mb-4">1. Elige una especialidad</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {Object.entries(SUBCORE_CATEGORIES).map(([key, value]) => (
-                            <button key={key} onClick={() => setSubcore(key as any)} className="p-6 bg-gray-800 rounded-lg text-left hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <div className="flex items-center">
-                                    <value.icon className="w-8 h-8 mr-4 text-blue-400" />
-                                    <div>
-                                        <h3 className="font-bold text-lg">{value.name}</h3>
-                                        <p className="text-gray-400 text-sm">{value.description}</p>
-                                    </div>
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-                 </section>
-            )}
-
-            {/* Step 2: Select Template */}
-            {subcore && !template && (
-                 <section className="animate-fade-in">
-                    <button onClick={() => setSubcore(null)} className="flex items-center text-blue-400 hover:underline mb-4">
-                         Volver a especialidades
-                    </button>
-                    <h2 className="text-xl font-semibold mb-4">2. Selecciona una plantilla para <span className="text-blue-400">{SUBCORE_CATEGORIES[subcore as keyof typeof SUBCORE_CATEGORIES].name}</span></h2>
-                    <div className="space-y-3">
-                        {TEMPLATES[subcore].map((t: Template) => (
-                            <button key={t.name} onClick={() => setTemplate(t)} className="w-full p-4 bg-gray-800 rounded-lg text-left hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500">
-                                <h3 className="font-bold">{t.name}</h3>
-                                <p className="text-gray-400 text-sm">{t.description}</p>
-                            </button>
-                        ))}
-                    </div>
-                </section>
-            )}
-
-            {/* Step 3: Input Content */}
-            {subcore && template && (
-                 <section className="animate-fade-in">
-                    <button onClick={() => setTemplate(null)} className="flex items-center text-blue-400 hover:underline mb-4">
-                        Volver a plantillas
-                    </button>
-                     <h2 className="text-xl font-semibold mb-4">3. Completa los detalles del documento</h2>
-
-                    <div className="bg-gray-800 p-6 rounded-lg space-y-6">
-                        <div>
-                            <label htmlFor="doc-title" className="block text-sm font-medium text-gray-300 mb-2">Título del Documento</label>
-                            <input
-                                type="text"
-                                id="doc-title"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                placeholder="Ej: Reporte de Pruebas Q3"
-                                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="source-content" className="block text-sm font-medium text-gray-300 mb-2">Contenido Fuente</label>
-                            <textarea
-                                id="source-content"
-                                rows={10}
-                                value={sourceContent}
-                                onChange={(e) => setSourceContent(e.target.value)}
-                                placeholder="Pega aquí el contenido base, notas, datos brutos, o un borrador..."
-                                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                        </div>
-
-                        <div>
-                            <label htmlFor="output-format" className="block text-sm font-medium text-gray-300 mb-2">Formato de Salida</label>
-                            <select
-                                id="output-format"
-                                value={outputFormat}
-                                onChange={(e) => setOutputFormat(e.target.value)}
-                                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            >
-                                {template.supportedFormats.map(format => (
-                                    <option key={format} value={format}>{format}</option>
-                                ))}
-                            </select>
+    
+    const renderStepContent = () => {
+        switch(step) {
+            case 1:
+                return (
+                    <div>
+                        <h2 className="text-2xl font-bold mb-2">Selecciona una Categoría</h2>
+                        <p className="text-gray-400 mb-6">Elige el área de especialización para tu documento.</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            {Object.entries(SUBCORE_CATEGORIES).map(([key, { name, icon: Icon, description }]) => (
+                                <button key={key} onClick={() => handleSubcoreSelect(key as SubcoreType)} className="p-6 bg-gray-800 rounded-lg text-left hover:bg-gray-700 hover:scale-105 transition-transform duration-200">
+                                    <Icon className="h-8 w-8 text-blue-500 mb-3" />
+                                    <h3 className="text-lg font-bold">{name}</h3>
+                                    <p className="text-sm text-gray-400">{description}</p>
+                                </button>
+                            ))}
                         </div>
                     </div>
-
-                    {error && <p className="text-red-500 mt-4">{error}</p>}
-                    
-                    <div className="mt-8 flex justify-end">
-                         <button 
-                            onClick={handleGenerate}
-                            disabled={!title || !sourceContent || !outputFormat}
-                            className="px-8 py-3 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed"
-                        >
-                            Generar Documento
+                );
+            case 2:
+                return (
+                    <div>
+                        <button onClick={() => setStep(1)} className="flex items-center gap-2 mb-4 text-blue-400 hover:text-blue-300">
+                           <ArrowLeftIcon className="h-5 w-5" /> Volver a Categorías
                         </button>
+                        <h2 className="text-2xl font-bold mb-2">Selecciona una Plantilla</h2>
+                        <p className="text-gray-400 mb-6">Estas son las plantillas recomendadas para {selectedSubcore}.</p>
+                        <div className="space-y-3">
+                            {selectedSubcore && TEMPLATES[selectedSubcore].map(template => (
+                                <button key={template.name} onClick={() => handleTemplateSelect(template)} className="w-full p-4 bg-gray-800 rounded-lg text-left hover:bg-gray-700 transition-colors duration-200">
+                                    <h3 className="font-bold">{template.name}</h3>
+                                    <p className="text-sm text-gray-400">{template.description}</p>
+                                </button>
+                            ))}
+                        </div>
                     </div>
-                </section>
-            )}
+                );
+            case 3:
+                return (
+                     <div>
+                        <button onClick={() => setStep(2)} className="flex items-center gap-2 mb-4 text-blue-400 hover:text-blue-300">
+                            <ArrowLeftIcon className="h-5 w-5" /> Volver a Plantillas
+                        </button>
+                        <h2 className="text-2xl font-bold mb-2">Detalles del Documento</h2>
+                        <p className="text-gray-400 mb-6">Proporciona la información clave para generar tu <span className="font-semibold text-blue-400">{selectedTemplate?.name}</span>.</p>
+                        <div className="space-y-4">
+                            <input type="text" placeholder="Título del Documento" value={documentTitle} onChange={(e) => setDocumentTitle(e.target.value)} className="w-full p-3 bg-gray-800 rounded-lg border border-gray-700 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <select value={language} onChange={(e) => setLanguage(e.target.value)} className="w-full p-3 bg-gray-800 rounded-lg border border-gray-700 focus:ring-2 focus:ring-blue-500 outline-none">
+                                <option>Español</option>
+                                <option>Inglés</option>
+                            </select>
+                            <textarea placeholder="Puntos clave, temas a cubrir, o un resumen del contenido..." value={keyPoints} onChange={(e) => setKeyPoints(e.target.value)} rows={6} className="w-full p-3 bg-gray-800 rounded-lg border border-gray-700 focus:ring-2 focus:ring-blue-500 outline-none" />
+                            <div>
+                                <label className="block text-sm text-gray-400 mb-2">Formato de Salida</label>
+                                <div className="flex gap-2">
+                                    {selectedTemplate?.supportedFormats.map(format => (
+                                        <button key={format} onClick={() => setOutputFormat(format)} className={`px-4 py-2 rounded-lg ${outputFormat === format ? 'bg-blue-600 text-white' : 'bg-gray-700 hover:bg-gray-600'}`}>
+                                            {format}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <button onClick={handleGenerate} disabled={isLoading} className="mt-6 w-full flex justify-center items-center gap-2 py-3 px-6 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
+                            {isLoading ? 'Generando...' : 'Generar Documento'}
+                            <SparklesIcon className="h-5 w-5" />
+                        </button>
+                        {error && <p className="text-red-400 mt-4 text-center">{error}</p>}
+                    </div>
+                );
+            case 4:
+                 return (
+                    <div>
+                        <h2 className="text-2xl font-bold mb-2">¡Documento Generado!</h2>
+                        <p className="text-gray-400 mb-6">Tu <span className="font-semibold text-blue-400">{selectedTemplate?.name}</span> está listo.</p>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Columna del documento */}
+                            <div>
+                                <h3 className="text-lg font-semibold mb-2">Contenido del Documento</h3>
+                                <div className="bg-gray-950 p-4 rounded-lg border border-gray-700 h-96 overflow-y-auto">
+                                    <pre className="whitespace-pre-wrap text-sm">{generatedContent}</pre>
+                                </div>
+                            </div>
+
+                            {/* Columna de análisis y flashcards */}
+                            <div className="flex flex-col">
+                                <h3 className="text-lg font-semibold mb-2">Análisis y Sugerencias</h3>
+                                <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex-1 flex flex-col">
+                                    {isFlashcardLoading ? (
+                                        <div className="m-auto text-center text-gray-400">
+                                            <p>Analizando el contenido...</p>
+                                        </div>
+                                    ) : flashcards.length > 0 ? (
+                                        <div className="space-y-3 overflow-y-auto">
+                                            {flashcards.map((card, index) => (
+                                                <div key={index} className="flex items-start gap-3 p-3 bg-gray-900/50 rounded-lg">
+                                                    <FlashcardIcon type={card.type} />
+                                                    <p className="text-sm text-gray-300">{card.content}</p>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="m-auto text-center text-gray-500">
+                                            <p>Haz clic en el botón para analizar el documento y obtener sugerencias.</p>
+                                        </div>
+                                    )}
+                                    <button onClick={handleAnalyze} disabled={isFlashcardLoading} className="mt-4 w-full flex justify-center items-center gap-2 py-2 px-4 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
+                                        {isFlashcardLoading ? 'Analizando...' : 'Analizar y Generar Flashcards'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                         <div className="mt-6 flex gap-4">
+                            <button onClick={reset} className="flex-1 py-3 px-6 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition-colors">
+                                Crear Otro Documento
+                            </button>
+                            <button onClick={handleDownload} className="flex-1 flex justify-center items-center gap-2 py-3 px-6 bg-blue-600 rounded-lg font-semibold hover:bg-blue-700 transition-colors">
+                                Descargar <DocumentArrowDownIcon className="h-5 w-5" />
+                            </button>
+                         </div>
+                    </div>
+                );
+        }
+    }
+    
+    return (
+        <div className="max-w-7xl mx-auto">
+            {renderStepContent()}
         </div>
     );
 };
