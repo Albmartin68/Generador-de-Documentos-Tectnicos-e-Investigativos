@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { SUBCORE_CATEGORIES, TEMPLATES } from '../constants';
 import { SubcoreType, Template, SupportedFormat, Flashcard, FlashcardType } from '../types';
 import { generateDocumentContent } from '../services/geminiService';
@@ -8,11 +8,11 @@ import { ArrowLeftIcon, SparklesIcon, DocumentArrowDownIcon, ExclamationTriangle
 const FlashcardIcon: React.FC<{ type: FlashcardType }> = ({ type }) => {
     switch (type) {
         case 'error':
-            return <ExclamationTriangleIcon className="h-6 w-6 text-red-400" />;
+            return <ExclamationTriangleIcon className="h-6 w-6 text-red-400 flex-shrink-0" />;
         case 'suggestion':
-            return <LightBulbIcon className="h-6 w-6 text-yellow-400" />;
+            return <LightBulbIcon className="h-6 w-6 text-yellow-400 flex-shrink-0" />;
         case 'keyInfo':
-            return <SparklesIcon className="h-6 w-6 text-cyan-400" />;
+            return <SparklesIcon className="h-6 w-6 text-cyan-400 flex-shrink-0" />;
         default:
             return null;
     }
@@ -29,8 +29,21 @@ const DocumentGenerator: React.FC = () => {
     const [generatedContent, setGeneratedContent] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [highlightedText, setHighlightedText] = useState<string | null>(null);
+
+    const contentRef = useRef<HTMLDivElement>(null);
     
     const { addDocument, generateFlashcards, flashcards, isFlashcardLoading, clearFlashcards } = useDocument();
+    
+    useEffect(() => {
+        if (highlightedText && contentRef.current) {
+            const markElement = contentRef.current.querySelector('mark');
+            if (markElement) {
+                markElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    }, [highlightedText]);
+
 
     const handleSubcoreSelect = (subcore: SubcoreType) => {
         setSelectedSubcore(subcore);
@@ -52,6 +65,7 @@ const DocumentGenerator: React.FC = () => {
         setIsLoading(true);
         setGeneratedContent('');
         clearFlashcards();
+        setHighlightedText(null);
 
         try {
             const content = await generateDocumentContent({
@@ -84,6 +98,10 @@ const DocumentGenerator: React.FC = () => {
         if (!generatedContent) return;
         await generateFlashcards(generatedContent);
     }
+
+    const handleFlashcardClick = (content: string) => {
+        setHighlightedText(prev => (prev === content ? null : content));
+    };
     
     const handleDownload = () => {
         if (!generatedContent) return;
@@ -115,7 +133,30 @@ const DocumentGenerator: React.FC = () => {
         setGeneratedContent('');
         setError(null);
         clearFlashcards();
+        setHighlightedText(null);
     }
+    
+    const renderHighlightedContent = () => {
+        if (!highlightedText) {
+            return <pre className="whitespace-pre-wrap text-sm">{generatedContent}</pre>;
+        }
+        // Escape regex special characters from the search string
+        const escapedText = highlightedText.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+        const parts = generatedContent.split(new RegExp(`(${escapedText})`, 'gi'));
+
+        return (
+            <pre className="whitespace-pre-wrap text-sm">
+                {parts.map((part, index) => 
+                    // Odd-indexed parts are the matches from the capturing group in the regex
+                    index % 2 === 1 ? (
+                        <mark key={index} className="bg-blue-500 text-white px-1 rounded">{part}</mark>
+                    ) : (
+                        <span key={index}>{part}</span>
+                    )
+                )}
+            </pre>
+        );
+    };
     
     const renderStepContent = () => {
         switch(step) {
@@ -187,42 +228,77 @@ const DocumentGenerator: React.FC = () => {
                     </div>
                 );
             case 4:
+                const flashcardGroups = flashcards.reduce((acc, card) => {
+                    (acc[card.type] = acc[card.type] || []).push(card);
+                    return acc;
+                }, {} as Record<FlashcardType, Flashcard[]>);
+
+                const groupOrder: FlashcardType[] = ['error', 'suggestion', 'keyInfo'];
+                const groupInfo: Record<FlashcardType, { title: string; styles: string }> = {
+                    error: { title: 'Errores Potenciales', styles: 'border-red-500' },
+                    suggestion: { title: 'Sugerencias de Mejora', styles: 'border-yellow-500' },
+                    keyInfo: { title: 'Información Clave', styles: 'border-cyan-500' },
+                };
+
                  return (
                     <div>
                         <h2 className="text-2xl font-bold mb-2">¡Documento Generado!</h2>
-                        <p className="text-gray-400 mb-6">Tu <span className="font-semibold text-blue-400">{selectedTemplate?.name}</span> está listo.</p>
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <p className="text-gray-400 mb-6">Tu <span className="font-semibold text-blue-400">{selectedTemplate?.name}</span> está listo. Haz clic en las tarjetas de análisis para resaltar el texto.</p>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[60vh]">
                             {/* Columna del documento */}
                             <div>
                                 <h3 className="text-lg font-semibold mb-2">Contenido del Documento</h3>
-                                <div className="bg-gray-950 p-4 rounded-lg border border-gray-700 h-96 overflow-y-auto">
-                                    <pre className="whitespace-pre-wrap text-sm">{generatedContent}</pre>
+                                <div ref={contentRef} className="bg-gray-950 p-4 rounded-lg border border-gray-700 h-full overflow-y-auto">
+                                    {renderHighlightedContent()}
                                 </div>
                             </div>
 
                             {/* Columna de análisis y flashcards */}
-                            <div className="flex flex-col">
+                            <div className="flex flex-col h-full">
                                 <h3 className="text-lg font-semibold mb-2">Análisis y Sugerencias</h3>
-                                <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex-1 flex flex-col">
+                                <div className="bg-gray-800 p-4 rounded-lg border border-gray-700 flex-1 flex flex-col overflow-hidden">
                                     {isFlashcardLoading ? (
                                         <div className="m-auto text-center text-gray-400">
                                             <p>Analizando el contenido...</p>
                                         </div>
                                     ) : flashcards.length > 0 ? (
-                                        <div className="space-y-3 overflow-y-auto">
-                                            {flashcards.map((card, index) => (
-                                                <div key={index} className="flex items-start gap-3 p-3 bg-gray-900/50 rounded-lg">
-                                                    <FlashcardIcon type={card.type} />
-                                                    <p className="text-sm text-gray-300">{card.content}</p>
-                                                </div>
-                                            ))}
+                                        <div className="overflow-y-auto pr-2 space-y-4">
+                                            {groupOrder.map(type => 
+                                                flashcardGroups[type] && (
+                                                    <div key={type}>
+                                                        <h4 className={`text-sm font-bold uppercase tracking-wider text-gray-400 pb-2 mb-2 border-b-2 ${groupInfo[type].styles}`}>
+                                                            {groupInfo[type].title}
+                                                        </h4>
+                                                        <div className="space-y-2">
+                                                            {flashcardGroups[type].map((card, index) => {
+                                                                let cardStyles = '';
+                                                                switch(card.type) {
+                                                                    case 'error': cardStyles = 'bg-red-900/30 border-l-4 border-red-500'; break;
+                                                                    case 'suggestion': cardStyles = 'bg-yellow-900/30 border-l-4 border-yellow-500'; break;
+                                                                    case 'keyInfo': cardStyles = 'bg-cyan-900/30 border-l-4 border-cyan-500'; break;
+                                                                }
+                                                                return (
+                                                                    <div 
+                                                                        key={`${type}-${index}`} 
+                                                                        onClick={() => handleFlashcardClick(card.content)}
+                                                                        className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors duration-200 ${cardStyles} ${highlightedText === card.content ? 'bg-blue-900/50' : 'hover:bg-gray-700/50'}`}
+                                                                    >
+                                                                        <FlashcardIcon type={card.type} />
+                                                                        <p className="text-sm text-gray-200 flex-1">{card.content}</p>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            )}
                                         </div>
                                     ) : (
                                         <div className="m-auto text-center text-gray-500">
                                             <p>Haz clic en el botón para analizar el documento y obtener sugerencias.</p>
                                         </div>
                                     )}
-                                    <button onClick={handleAnalyze} disabled={isFlashcardLoading} className="mt-4 w-full flex justify-center items-center gap-2 py-2 px-4 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
+                                    <button onClick={handleAnalyze} disabled={isFlashcardLoading || !generatedContent} className="mt-4 w-full flex-shrink-0 justify-center items-center gap-2 py-2 px-4 bg-gray-700 rounded-lg font-semibold hover:bg-gray-600 transition-colors disabled:bg-gray-500 disabled:cursor-not-allowed">
                                         {isFlashcardLoading ? 'Analizando...' : 'Analizar y Generar Flashcards'}
                                     </button>
                                 </div>
